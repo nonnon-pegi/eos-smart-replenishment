@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>統家 EOS 智慧補貨（展示版）</title>
+<style>
+:root{--bg:#f3f6f4;--ink:#1c2b26;--mut:#5d6d66;--line:#d8e1dc;--brand:#0b7a5a;--bd:#085c44;--warn:#b86e00;--wb:#fff1d6;--bad:#b3261e;--okb:#dff3ea}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 "Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}
+h1{margin:0;font-size:1.4rem}h2{margin:0 0 4px;font-size:1.15rem}.hint{color:var(--mut);font-size:.9rem;margin:0}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:16px clamp(16px,4vw,48px);background:#fff;border-bottom:2px solid var(--brand)}
+.tabs{display:flex;gap:4px;padding:0 clamp(16px,4vw,48px);background:#fff;border-bottom:1px solid var(--line);overflow-x:auto}
+.tabs button{font:inherit;background:none;border:0;padding:12px 16px;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+.tabs .on{border-color:var(--brand);color:var(--brand);font-weight:700}
+main{max-width:1100px;margin:0 auto;padding:20px clamp(16px,4vw,48px) 60px;display:grid;gap:16px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.card,.panel{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px}
+.card b{display:block;font-size:2rem;color:var(--brand);line-height:1.2}
+.tw{overflow-x:auto;margin-top:10px}table{width:100%;border-collapse:collapse;min-width:720px}
+th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}th{font-size:.84rem;color:var(--mut)}.r{text-align:right}
+td input{width:92px;padding:6px 8px;font:inherit;text-align:right;border:1.5px solid var(--line);border-radius:6px}
+input:focus,select:focus,textarea:focus,.btn:focus-visible{outline:3px solid #8fd1b9}
+tr.big td{background:var(--wb)}.sp{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.badge{display:inline-block;padding:2px 10px;border-radius:99px;font-size:.8rem;font-weight:600}
+.ok{background:var(--okb);color:var(--bd)}.mod{background:#e4ecff;color:#2a4ba0}.lg{background:var(--wb);color:var(--warn);border:1px solid var(--warn)}
+.btn{font:inherit;padding:9px 18px;border-radius:8px;border:1.5px solid var(--line);background:#fff;cursor:pointer}
+.pri{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}.pri:hover{background:var(--bd)}
+.banner{background:var(--wb);border:1px solid var(--warn);border-radius:8px;padding:8px 14px;font-size:.9rem}
+.spark{color:var(--brand);letter-spacing:1px}
+details{margin:8px 0;padding:10px 12px;border:1px solid var(--line);border-radius:8px}summary{cursor:pointer}
+.login{min-height:100vh;display:grid;place-items:center;padding:16px}
+.login form{background:#fff;padding:28px;border-radius:12px;width:min(400px,100%);border:1px solid var(--line);display:grid;gap:12px}
+.login input,.mi select,.mi textarea{font:inherit;padding:9px;border:1.5px solid var(--line);border-radius:6px;width:100%;margin-top:4px}
+.err{color:var(--bad);font-weight:600}.acts{display:flex;justify-content:flex-end;gap:10px;margin-top:14px;flex-wrap:wrap}
+.modal{position:fixed;inset:0;background:rgba(15,30,25,.55);display:grid;place-items:center;padding:16px;z-index:20}
+.dlg{background:#fff;border-radius:12px;padding:22px;width:min(560px,100%);max-height:90vh;overflow:auto;animation:pop .18s ease-out}
+@keyframes pop{from{transform:scale(.95);opacity:0}to{transform:none;opacity:1}}
+.mi{margin:14px 0;padding:12px;border:1px solid var(--warn);border-radius:8px;background:var(--wb)}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 20px;border-radius:8px;z-index:30;max-width:90vw}
+@media(prefers-reduced-motion:reduce){.dlg{animation:none}}
+</style>
+</head>
+<body>
+<section id="login" class="login"><form id="lf">
+  <h1>統家 EOS 智慧補貨</h1><p class="hint">展示版：資料只存在您的瀏覽器中。</p>
+  <label>帳號<input id="u" required autocomplete="username"></label>
+  <label>密碼<input id="pw" type="password" required autocomplete="current-password"></label>
+  <p id="le" class="err" hidden></p><button class="btn pri">登入</button>
+  <p class="hint">示範帳號：tn01（台南）、tp01（台北）、kh01（高雄）、hq01（總部），密碼皆為 demo1234</p>
+</form></section>
+<div id="app" hidden>
+  <header class="top"><div><h1>統家 EOS</h1><p class="hint" id="who"></p></div>
+    <div><button class="btn" id="rst">重設展示資料</button> <button class="btn" id="out">登出</button></div></header>
+  <nav class="tabs" id="tabs"></nav><main id="main"></main>
+</div>
+<div id="modal" class="modal" hidden><div class="dlg" role="dialog" aria-modal="true">
+  <h2>這些品項的數量比平常多很多</h2><p class="hint">訂購量超過歷史平均的 5 倍。請說明原因後再送出。</p>
+  <div id="mb"></div><p id="me" class="err" hidden></p>
+  <div class="acts"><button class="btn" id="mc">回去修改數量</button><button class="btn pri" id="mo">確認原因並送出</button></div></div></div>
+<div id="toast" class="toast" hidden></div>
+<script>
+const KEY="eos_demo_v1",CF={period:2,z:1.65,large:5,
+stores:{"TN-0123":"統家台南中西門市","TP-0456":"統家台北信義門市","KH-0789":"統家高雄左營門市"},
+users:{tn01:["王店長","TN-0123"],tp01:["林店長","TP-0456"],kh01:["陳店長","KH-0789"],hq01:["曾可蓮組長",null]},
+factors:[{c:"雨具",f:1.5,l:"颱風外圍環流，預報降雨"},{c:"飲料",f:1.2,l:"週末高溫預報"}],
+reasons:["區域大型活動（如園遊會、運動會）","促銷或檔期備貨","天候或颱風備貨","客戶／團體預訂","其他（請說明）"]};
+const PR=[["P001","雨衣（輕便型）","雨具","件",1,0,10],["P002","鮮奶 936ml","乳品","瓶",6,5,20],["P003","御飯糰（鮪魚）","鮮食","個",1,2,22],["P004","礦泉水 600ml","飲料","瓶",24,0,50],["P005","咖啡杯蓋","耗材","個",50,0,100],["P006","洋芋片（原味）","零食","包",12,0,10],["P007","三明治（火腿蛋）","鮮食","個",1,2,11],["P008","雨傘（折疊）","雨具","支",1,0,4]].map(a=>({id:a[0],name:a[1],cat:a[2],unit:a[3],lot:a[4],shelf:a[5],base:a[6]}));
+const WD=[1,1,1,1,1.2,1.35,1.15],STAT={SENT:"已送出，待總部確認",CONFIRMED:"總部已確認，待納品",DELIVERED:"已納品"};
+const $=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const hash=s=>[...s].reduce((h,c)=>Math.imul(h^c.charCodeAt(0),16777619),2166136261)>>>0;
+const rnd=seed=>{let a=seed;return()=>{a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}};
+const dstr=d=>{const x=new Date(S.start+"T00:00:00");x.setDate(x.getDate()+d);return x.toLocaleDateString("sv-SE")};
+const dow=d=>(new Date(dstr(d)+"T00:00:00").getDay()+6)%7, hm=()=>new Date().toTimeString().slice(0,5);
+const sale=(sid,p,d)=>Math.max(0,Math.round(p.base*WD[dow(d)]*(.75+.5*rnd(hash(sid+p.id+d))())));
+function init(){S={start:new Date().toLocaleDateString("sv-SE"),day:0,hist:{},stock:{},orders:[],counts:[],audit:[]};
+ for(const sid in CF.stores){S.hist[sid]={};S.stock[sid]={};for(const p of PR){S.hist[sid][p.id]=Array.from({length:28},(_,i)=>sale(sid,p,i-28));S.stock[sid][p.id]=Math.floor(p.base*(.1+.5*rnd(hash(sid+p.id+"s"))()))}}return S}
+let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}S=S||init();
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+let U=null;try{U=JSON.parse(sessionStorage.getItem("u"))}catch(e){}
+function calc(sid,p){const h=S.hist[sid][p.id],w=h.slice(-7).reduce((a,v,i)=>a+(i+1)*v,0)/28,fs=CF.factors.filter(x=>x.c===p.cat),f=fs.reduce((a,x)=>a*x.f,1),fc=w*CF.period*f;
+ const l=h.slice(-14),m=l.reduce((a,v)=>a+v,0)/14,sd=Math.sqrt(l.reduce((a,v)=>a+(v-m)**2,0)/14),ss=Math.ceil(CF.z*sd*Math.sqrt(CF.period)),st=S.stock[sid][p.id],raw=fc+ss-st;
+ let q=raw>0?Math.ceil(raw/p.lot)*p.lot:0;if(p.shelf)q=Math.min(q,Math.max(0,Math.floor((Math.floor(w*p.shelf)-st)/p.lot)*p.lot));
+ const avg=Math.round(p.base*CF.period);return{...p,stock:st,fc:Math.round(fc*10)/10,f:Math.round(f*100)/100,fl:fs.map(x=>x.l).join("、"),ss,sug:q,avg,thr:avg*CF.large,sp:l}}
+const spark=a=>{const m=Math.max(...a,1);return a.map(v=>"▁▂▃▄▅▆▇█"[Math.min(7,Math.floor(v/m*7.99))]).join("")};
+function toast(m){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,4000)}
+$("#lf").onsubmit=e=>{e.preventDefault();const k=$("#u").value.trim(),x=CF.users[k];if(!x||$("#pw").value!=="demo1234"){$("#le").textContent="帳號或密碼錯誤";$("#le").hidden=false;return}
+ U={name:x[0],sid:x[1],hq:!x[1]};sessionStorage.setItem("u",JSON.stringify(U));$("#pw").value="";boot()};
+$("#out").onclick=()=>{sessionStorage.removeItem("u");U=null;$("#app").hidden=true;$("#login").hidden=false};
+$("#rst").onclick=()=>{if(confirm("展示資料會回到初始狀態，確定嗎？")){S=init();save();go(TB[0][0])}};
+let TB=[];const VIEWS={};
+function boot(){$("#login").hidden=true;$("#app").hidden=false;
+ TB=U.hq?[["hq","總部總覽"],["orders","訂單履歷"],["audit","稽核日誌"]]:[["order","補貨建議"],["count","今日盤點"],["orders","訂單履歷"],["counts","盤點履歷"],["audit","稽核日誌"]];
+ $("#tabs").innerHTML=TB.map(t=>`<button data-t="${t[0]}">${t[1]}</button>`).join("");$("#tabs").querySelectorAll("button").forEach(b=>b.onclick=()=>go(b.dataset.t));go(TB[0][0])}
+function go(t){$("#who").textContent=`${U.sid?CF.stores[U.sid]:"統家總部"}｜${U.name}｜展示日期 ${dstr(S.day)}（第 ${S.day+1} 天）`;
+ $("#tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));VIEWS[t]()}
+/* 補貨建議 */
+let CUR=[],LG=[];
+VIEWS.order=()=>{CUR=PR.map(p=>calc(U.sid,p));
+ $("#main").innerHTML=`${CF.factors.map(f=>`<div class="banner">${f.c}：${f.l}，預估銷量已乘以 ${f.f}</div>`).join("")}
+ <div class="cards"><div class="card"><b id="c1"></b>補貨品項</div><div class="card"><b id="c2"></b>待確認（手動調整或大額）</div><div class="card"><b id="c3"></b>訂購總數量</div></div>
+ <div class="panel"><div class="sp"><h2>補貨明細</h2><span><button class="btn" id="rs">全部還原為建議量</button> <button class="btn pri" id="sb">確認並送出補貨單</button></span></div>
+ <p class="hint">建議量＝預估銷量＋安全庫存－盤點庫存。特殊狀況（如區域活動）再手動修改。盤點、總部確認、翌日更新都會改變這裡的數字。</p>
+ <div class="tw"><table><thead><tr><th>商品</th><th class="r">盤點庫存</th><th class="r">預估銷量</th><th class="r">安全庫存</th><th class="r">歷史平均</th><th class="r">建議量</th><th class="r">訂購量</th><th>近14日銷量</th><th>狀態</th></tr></thead><tbody>
+ ${CUR.map((p,i)=>`<tr data-i="${i}"><td>${esc(p.name)}<br><small>${p.cat}・${p.unit}${p.lot>1?"・"+p.lot+"入一箱":""}</small></td><td class="r">${p.stock}</td><td class="r">${p.fc}${p.f!==1?`<br><small>×${p.f}</small>`:""}</td><td class="r">${p.ss}</td><td class="r">${p.avg}</td><td class="r" title="預估${p.fc}＋安全${p.ss}－庫存${p.stock}"><b>${p.sug}</b></td><td class="r"><input type="number" min="0" step="1" value="${p.sug}" aria-label="${esc(p.name)}訂購量"></td><td class="spark">${spark(p.sp)}</td><td><span class="badge ok">依建議</span></td></tr>`).join("")}
+ </tbody></table></div></div>`;
+ $("#main").querySelectorAll("input").forEach(i=>i.oninput=ref);$("#rs").onclick=()=>{$("#main").querySelectorAll("tbody tr").forEach(r=>r.querySelector("input").value=CUR[r.dataset.i].sug);ref()};$("#sb").onclick=sub;ref()};
+const qv=r=>Math.max(0,parseInt(r.querySelector("input").value,10)||0);
+function ref(){let pe=0,t=0,n=0;$("#main").querySelectorAll("tbody tr").forEach(r=>{const p=CUR[r.dataset.i],q=qv(r),b=r.querySelector(".badge"),big=q>p.thr;t+=q;if(q>0)n++;r.classList.toggle("big",big);
+ if(big){b.className="badge lg";b.textContent="大額・需說明";pe++}else if(q!==p.sug){b.className="badge mod";b.textContent="已手動調整";pe++}else{b.className="badge ok";b.textContent="依建議"}});
+ $("#c1").textContent=n;$("#c2").textContent=pe;$("#c3").textContent=t}
+const lines=()=>[...$("#main").querySelectorAll("tbody tr")].map(r=>({p:CUR[r.dataset.i],q:qv(r)}));
+function sub(){LG=lines().filter(l=>l.q>l.p.thr);if(!LG.length)return send({});
+ $("#mb").innerHTML=LG.map((l,i)=>`<div class="mi" data-i="${i}"><b>${esc(l.p.name)}：訂購 ${l.q} ${l.p.unit}（歷史平均 ${l.p.avg}，約 ${(l.q/l.p.avg).toFixed(1)} 倍）</b>
+ <label>大量訂購原因<select><option value="">請選擇原因</option>${CF.reasons.map(r=>`<option>${r}</option>`).join("")}</select></label><label>補充說明<textarea rows="2" placeholder="例如：活動日期、預計人數"></textarea></label></div>`).join("");
+ $("#me").hidden=true;$("#modal").hidden=false}
+$("#mc").onclick=()=>$("#modal").hidden=true;
+$("#mo").onclick=()=>{const rs={};for(const b of $("#mb").querySelectorAll(".mi")){const l=LG[b.dataset.i],r=b.querySelector("select").value,n=b.querySelector("textarea").value.trim();
+ if(!r||(r.startsWith("其他")&&!n)){$("#me").textContent=`請填寫「${l.p.name}」的大量訂購原因${r?"與補充說明":""}。`;$("#me").hidden=false;return}rs[l.p.id]={r,n}}$("#modal").hidden=true;send(rs)};
+function send(rs){const ts=dstr(S.day)+" "+hm(),ls=lines().filter(l=>l.q>0).map(l=>({ts,sid:U.sid,pid:l.p.id,name:l.p.name,unit:l.p.unit,sug:l.p.sug,fin:l.q,mod:l.q!==l.p.sug,big:l.q>l.p.thr,reason:rs[l.p.id]?.r||"",note:rs[l.p.id]?.n||""}));
+ if(!ls.length)return toast("沒有數量大於 0 的品項");const id="PO"+dstr(S.day).replace(/-/g,"")+String(S.orders.length+1).padStart(3,"0");
+ S.orders.unshift({id,sid:U.sid,op:U.name,ts,day:S.day,status:"SENT",lines:ls});S.audit.unshift(...ls);save();toast(`補貨單 ${id} 已送出（${ls.length} 品項）`);go("orders")}
+/* 盤點 */
+VIEWS.count=()=>{const it=PR.map(p=>calc(U.sid,p));$("#main").innerHTML=`<div class="panel"><h2>今日盤點</h2><p class="hint">輸入架上實際數量。儲存後「補貨建議」的數字會立即重算。</p>
+ <div class="tw"><table><thead><tr><th>商品</th><th class="r">系統庫存</th><th class="r">實際盤點</th></tr></thead><tbody>${it.map(p=>`<tr data-id="${p.id}"><td>${esc(p.name)}</td><td class="r">${p.stock}</td><td class="r"><input type="number" min="0" step="1" value="${p.stock}"></td></tr>`).join("")}</tbody></table></div>
+ <div class="acts"><button class="btn pri" id="sc">儲存盤點並更新建議量</button></div></div>`;
+ $("#sc").onclick=()=>{const cs=[];$("#main").querySelectorAll("tbody tr").forEach(r=>{const q=qv(r);S.stock[U.sid][r.dataset.id]=q;cs.push({name:PR.find(p=>p.id===r.dataset.id).name,qty:q})});
+  S.counts.unshift({ts:dstr(S.day)+" "+hm(),day:S.day,sid:U.sid,op:U.name,cs});save();toast("盤點已儲存，建議補貨量已更新");go("order")}};
+/* 履歷 */
+const oh=(o,ack)=>`<details><summary>${o.ts}｜${o.id}｜${CF.stores[o.sid]}｜${o.lines.length} 品項｜<span class="badge ${o.status==="SENT"?"mod":"ok"}">${STAT[o.status]}</span></summary>
+ ${o.lines.map(l=>`<div>${esc(l.name)}：建議 ${l.sug} → 送出 ${l.fin} ${l.unit}${l.big?`　<span class="badge lg">大額</span> ${esc(l.reason)}${l.note?"（"+esc(l.note)+"）":""}`:l.mod?"　（手動調整）":""}</div>`).join("")}
+ ${ack&&o.status==="SENT"?`<div class="acts"><button class="btn pri" data-ack="${o.id}">確認此訂單</button></div>`:""}</details>`;
+const mine=a=>U.hq?a:a.filter(x=>x.sid===U.sid);
+VIEWS.orders=()=>{const os=mine(S.orders);$("#main").innerHTML=`<div class="panel"><h2>訂單履歷</h2>${os.length?os.map(o=>oh(o,0)).join(""):'<p class="hint">尚無訂單。送出補貨單後會顯示在這裡。</p>'}</div>`};
+VIEWS.counts=()=>{const cs=mine(S.counts);$("#main").innerHTML=`<div class="panel"><h2>歷次盤點紀錄</h2>${cs.length?cs.map(c=>`<details><summary>${c.ts}｜${esc(c.op)}｜${c.cs.length} 品項</summary>${c.cs.map(x=>`<div>${esc(x.name)}：${x.qty}</div>`).join("")}</details>`).join(""):'<p class="hint">尚無盤點紀錄。請先到「今日盤點」儲存。</p>'}</div>`};
+VIEWS.audit=()=>{const a=mine(S.audit);$("#main").innerHTML=`<div class="panel"><h2>稽核日誌</h2><div class="tw"><table><thead><tr><th>時間</th><th>門市</th><th>商品</th><th class="r">建議</th><th class="r">送出</th><th>備註</th></tr></thead><tbody>
+ ${a.length?a.map(l=>`<tr><td>${l.ts}</td><td>${l.sid}</td><td>${esc(l.name)}</td><td class="r">${l.sug}</td><td class="r">${l.fin}</td><td>${l.big?"大額："+esc(l.reason)+(l.note?"（"+esc(l.note)+"）":""):l.mod?"手動調整":"依建議"}</td></tr>`).join(""):'<tr><td colspan="6" class="hint">尚無紀錄。</td></tr>'}</tbody></table></div></div>`};
+/* 總部 */
+VIEWS.hq=()=>{const td=S.day,st=Object.keys(CF.stores).map(sid=>{const os=S.orders.filter(o=>o.sid===sid&&o.day===td);return{sid,n:CF.stores[sid],c:S.counts.some(c=>c.sid===sid&&c.day===td),o:os.length,pe:os.filter(o=>o.status==="SENT").length,lg:os.reduce((a,o)=>a+o.lines.filter(l=>l.big).length,0),q:os.reduce((a,o)=>a+o.lines.reduce((b,l)=>b+l.fin,0),0)}});
+ const pend=S.orders.filter(o=>o.status==="SENT"),wait=S.orders.filter(o=>o.status==="CONFIRMED").length;
+ $("#main").innerHTML=`<div class="cards"><div class="card"><b>${st.reduce((a,s)=>a+s.o,0)}</b>今日訂單數</div><div class="card"><b>${pend.length}</b>待總部確認</div><div class="card"><b>${wait}</b>已確認・待納品</div></div>
+ <div class="panel"><h2>今日各店狀況</h2><div class="tw"><table><thead><tr><th>門市</th><th>今日盤點</th><th class="r">今日訂單</th><th class="r">訂購總數量</th><th class="r">待確認</th><th class="r">大額品項</th></tr></thead><tbody>
+ ${st.map(s=>`<tr><td>${s.n}</td><td>${s.c?"已盤點":"尚未盤點"}</td><td class="r">${s.o}</td><td class="r">${s.q}</td><td class="r">${s.pe}</td><td class="r">${s.lg}</td></tr>`).join("")}</tbody></table></div></div>
+ <div class="panel"><h2>待總部確認的訂單</h2>${pend.length?pend.map(o=>oh(o,1)).join(""):'<p class="hint">目前沒有待確認的訂單。</p>'}</div>
+ <div class="panel"><div class="sp"><div><h2>展示：進入下一天</h2><p class="hint">已確認的訂單會納品、增加各店庫存；各店依當天銷量扣減庫存，所有建議量隨之改變。未確認的訂單不會到貨。</p></div><button class="btn pri" id="nx">進入下一天</button></div></div>`;
+ $("#main").querySelectorAll("[data-ack]").forEach(b=>b.onclick=()=>{S.orders.find(o=>o.id===b.dataset.ack).status="CONFIRMED";save();toast("已確認訂單");go("hq")});
+ $("#nx").onclick=()=>{let dl=0;const d=S.day;for(const sid in CF.stores)for(const p of PR){let add=0;S.orders.filter(o=>o.sid===sid&&o.status==="CONFIRMED").forEach(o=>o.lines.filter(l=>l.pid===p.id).forEach(l=>add+=l.fin));
+  S.stock[sid][p.id]=Math.max(0,S.stock[sid][p.id]+add-sale(sid,p,d));S.hist[sid][p.id].push(sale(sid,p,d));S.hist[sid][p.id].shift()}
+  S.orders.forEach(o=>{if(o.status==="CONFIRMED"){o.status="DELIVERED";dl++}});S.day++;save();toast(`已進入第 ${S.day+1} 天，${dl} 張訂單已納品`);go("hq")}};
+if(U)boot();
+</script>
+</body>
+</html>
