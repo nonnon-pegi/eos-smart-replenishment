@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>統家 EOS 智慧補貨</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <section id="login" class="login">
+    <form id="loginForm">
+      <h1>統家 EOS 智慧補貨</h1>
+      <p class="hint">請使用門市帳號登入。</p>
+      <label>帳號<input id="u" autocomplete="username" required></label>
+      <label>密碼<input id="pw" type="password" autocomplete="current-password" required></label>
+      <p id="lerr" class="error" hidden></p>
+      <button class="btn primary">登入</button>
+      <p class="hint">示範帳號：tn01（台南）、tp01（台北）、kh01（高雄）、hq01（總部）</p>
+    </form>
+  </section>
+  <div id="app" hidden>
+    <header class="topbar">
+      <div><h1 id="appTitle">統家 EOS</h1><p id="storeInfo"></p></div>
+      <button id="logout" class="btn">登出</button>
+    </header>
+    <nav class="tabs" id="tabs"></nav>
+    <main>
+      <section id="t-order" data-tab hidden>
+        <div id="banners"></div>
+        <div class="cards">
+          <div class="card"><span class="num" id="cTotal">–</span><span>補貨品項</span></div>
+          <div class="card"><span class="num" id="cPending">–</span><span>待確認（手動調整或大額）</span></div>
+          <div class="card"><span class="num" id="cQty">–</span><span>訂購總數量</span></div>
+        </div>
+        <div class="panel">
+          <div class="sp"><h2>補貨明細</h2><span><button id="resetBtn" class="btn">全部還原為建議量</button> <button id="submitBtn" class="btn primary">確認並送出補貨單</button></span></div>
+          <p class="hint">建議量依近期銷售與今日盤點自動計算。特殊狀況（如區域活動）再手動修改。每日 <span id="deadline">23:00</span> 前送出。</p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>商品</th><th class="r">盤點庫存</th><th class="r">預估銷量</th><th class="r">安全庫存</th><th class="r">歷史平均</th><th class="r">建議量</th><th class="r">訂購量</th><th>近14日銷量</th><th>狀態</th></tr></thead>
+            <tbody id="tbody"></tbody></table></div>
+        </div>
+      </section>
+      <section id="t-count" data-tab hidden class="panel">
+        <h2>今日盤點</h2>
+        <p class="hint">輸入架上實際數量，儲存後建議補貨量會立即重新計算。</p>
+        <div class="table-wrap"><table><thead><tr><th>商品</th><th class="r">系統庫存</th><th class="r">實際盤點</th></tr></thead><tbody id="countBody"></tbody></table></div>
+        <div class="actions"><button id="saveCount" class="btn primary">儲存盤點並更新建議量</button></div>
+      </section>
+      <section id="t-products" data-tab hidden>
+        <div class="panel"><h2>新增商品</h2>
+          <div class="form-grid">
+            <label>商品名稱<input id="pn" placeholder="例如：關東煮"></label>
+            <label>類別<select id="pc"><option>鮮食</option><option>飲料</option><option>零食</option><option>乳品</option><option>雨具</option><option>耗材</option><option>日用品</option><option>其他</option></select></label>
+            <label>單位<input id="pu" value="個"></label>
+            <label>箱入數<input id="pl" type="number" min="1" value="1"></label>
+            <label>預估日均銷量<input id="pb" type="number" min="1" value="10"></label>
+            <label>效期天數（0=無）<input id="ps" type="number" min="0" value="0"></label>
+            <label>目前庫存<input id="pk" type="number" min="0" value="0"></label>
+          </div>
+          <button id="addProd" class="btn primary">新增商品</button></div>
+        <div class="panel"><h2>目前商品</h2>
+          <div class="table-wrap"><table><thead><tr><th>商品</th><th>類別</th><th>單位</th><th class="r">箱入數</th><th class="r">日均銷量</th><th class="r">庫存</th><th>操作</th></tr></thead><tbody id="prodBody"></tbody></table></div></div>
+      </section>
+      <section id="t-orders" data-tab hidden class="panel"><div class="sp"><h2>訂單履歷</h2><select id="ordFilter"><option value="">全部狀態</option><option value="SENT">待總部確認</option><option value="CONFIRMED">總部已確認</option></select></div><p id="ordSummary" class="hint"></p><div id="ordersList"></div></section>
+      <section id="t-counts" data-tab hidden class="panel"><h2>歷次盤點紀錄</h2><div id="countsList"></div></section>
+      <section id="t-audit" data-tab hidden class="panel"><h2>稽核日誌</h2>
+        <div class="table-wrap"><table><thead><tr><th>時間</th><th>門市</th><th>商品</th><th class="r">建議</th><th class="r">送出</th><th>備註</th></tr></thead><tbody id="auditBody"></tbody></table></div></section>
+      <section id="t-hq" data-tab hidden>
+        <div class="panel"><h2>今日各店狀況</h2>
+          <div class="table-wrap"><table><thead><tr><th>門市</th><th>今日盤點</th><th class="r">今日訂單</th><th class="r">待確認</th><th class="r">大額品項</th></tr></thead><tbody id="hqStores"></tbody></table></div></div>
+        <div class="panel"><h2>待總部確認的訂單</h2><div id="hqOrders"></div></div>
+      </section>
+    </main>
+  </div>
+  <div id="modal" class="modal" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+      <h3 id="mTitle">這些品項的數量比平常多很多</h3>
+      <p class="hint">訂購量超過歷史平均的 5 倍。請確認數字正確，並說明原因後再送出。</p>
+      <div id="mBody"></div>
+      <p id="mError" class="error" hidden></p>
+      <div class="actions"><button id="mCancel" class="btn">回去修改數量</button><button id="mConfirm" class="btn primary">確認原因並送出</button></div>
+    </div>
+  </div>
+  <div id="toast" class="toast" hidden></div>
+  <script src="js/mock-api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
