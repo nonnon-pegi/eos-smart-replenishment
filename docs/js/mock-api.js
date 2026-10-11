@@ -1,0 +1,209 @@
+/* 靜態展示版：把 backend/main.py 的邏輯搬進瀏覽器，資料存在 localStorage。不需要伺服器，可直接放 GitHub Pages。 */
+const MockAPI = (() => {
+  const CFG = {
+    params: { period_days: 2, z: 1.65, large_order_factor: 5, order_deadline: "23:00" },
+    stores: [{ store_id: "TN-0123", name: "統家台南中西門市" }, { store_id: "TP-0456", name: "統家台北信義門市" }, { store_id: "KH-0789", name: "統家高雄左營門市" }],
+    users: [
+      { username: "tn01", password: "demo1234", name: "王店長", role: "manager", store_id: "TN-0123" },
+      { username: "tp01", password: "demo1234", name: "林店長", role: "manager", store_id: "TP-0456" },
+      { username: "kh01", password: "demo1234", name: "陳店長", role: "manager", store_id: "KH-0789" },
+      { username: "hq01", password: "demo1234", name: "曾可蓮組長", role: "hq", store_id: null }],
+    market_factors: [{ category: "雨具", factor: 1.5, label: "颱風外圍環流，預報降雨" }, { category: "飲料", factor: 1.2, label: "週末高溫預報" }],
+    products: [
+      { product_id: "P001", name: "雨衣（輕便型）", category: "雨具", unit: "件", lot: 1, shelf_days: 0, base_daily: 10 },
+      { product_id: "P002", name: "鮮奶 936ml", category: "乳品", unit: "瓶", lot: 6, shelf_days: 5, base_daily: 20 },
+      { product_id: "P003", name: "御飯糰（鮪魚）", category: "鮮食", unit: "個", lot: 1, shelf_days: 2, base_daily: 22 },
+      { product_id: "P004", name: "礦泉水 600ml", category: "飲料", unit: "瓶", lot: 24, shelf_days: 0, base_daily: 50 },
+      { product_id: "P005", name: "咖啡杯蓋", category: "耗材", unit: "個", lot: 50, shelf_days: 0, base_daily: 100 },
+      { product_id: "P006", name: "洋芋片（原味）", category: "零食", unit: "包", lot: 12, shelf_days: 0, base_daily: 10 },
+      { product_id: "P007", name: "三明治（火腿蛋）", category: "鮮食", unit: "個", lot: 1, shelf_days: 2, base_daily: 11 },
+      { product_id: "P008", name: "雨傘（折疊）", category: "雨具", unit: "支", lot: 1, shelf_days: 0, base_daily: 4 }],
+  };
+  const KEY = "eos_demo_v1", P = CFG.params, WD = [1, 1, 1, 1, 1.2, 1.35, 1.15];
+  let RT = { stock: {}, stocktakes: [], orders: [], audit: [], tok: {} };
+  try { RT = JSON.parse(localStorage.getItem(KEY)) || RT; } catch (e) {}
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(RT)); } catch (e) {} };
+  class Err extends Error { constructor(m, s) { super(m); this.status = s; } }
+  const pad = (n) => String(n).padStart(2, "0");
+  const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const now = () => { const d = new Date(); return `${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+  const rng = (s) => { let a = 2166136261; for (const c of s) { a ^= c.charCodeAt(0); a = Math.imul(a, 16777619); } a >>>= 0;
+    return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
+
+  const history = (sid, p) => { const r = rng(sid + p.product_id), out = [];
+    for (let i = 28; i >= 1; i--) { const d = new Date(Date.now() - i * 864e5); out.push(Math.max(0, Math.round(p.base_daily * WD[(d.getDay() + 6) % 7] * (0.75 + r() * 0.5)))); }
+    return out; };
+  const stockOf = (sid, p) => { const st = (RT.stock[sid] = RT.stock[sid] || {});
+    if (!(p.product_id in st)) st[p.product_id] = Math.floor(p.base_daily * (0.1 + rng(sid + p.product_id + "s")() * 0.5));
+    return st[p.product_id]; };
+  const std = (a) => { const m = a.reduce((x, y) => x + y, 0) / a.length; return Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / a.length); };
+
+  function calc(sid, p) {
+    const h = history(sid, p), wma = h.slice(-7).reduce((s, q, i) => s + (i + 1) * q, 0) / 28;
+    const fs = CFG.market_factors.filter((x) => x.category === p.category), f = fs.reduce((x, y) => x * y.factor, 1);
+    const fc = wma * P.period_days * f, ss = Math.ceil(P.z * std(h.slice(-14)) * Math.sqrt(P.period_days));
+    const stock = stockOf(sid, p), lot = p.lot, raw = fc + ss - stock;
+    let q = raw > 0 ? Math.ceil(raw / lot) * lot : 0;
+    if (p.shelf_days) q = Math.min(q, Math.max(0, Math.floor((Math.floor(wma * p.shelf_days) - stock) / lot) * lot));
+    const avg = Math.round(p.base_daily * P.period_days);
+    return { ...p, stock, forecast: Math.round(fc * 10) / 10, factor: Math.round(f * 100) / 100, factor_label: fs.map((x) => x.label).join("、"),
+      safety_stock: ss, suggested_qty: q, avg_order_qty: avg, large_threshold: avg * P.large_order_factor, spark: h.slice(-14) };
+  }
+  const auth = (t) => { const u = RT.tok[t]; if (!u) throw new Err("請先登入", 401); return u; };
+  const mgr = (t) => { const u = auth(t); if (u.role !== "manager") throw new Err("此功能僅限門市店長", 403); return u; };
+  const rev = (a) => a.slice().reverse();
+  const storeName = (id) => CFG.stores.find((s) => s.store_id === id).name;
+
+  const cat = (sid) => ((RT.cat = RT.cat || {})[sid] = RT.cat[sid] || { added: [], removed: [] });
+  const allProds = (sid) => [...CFG.products, ...cat(sid).added];
+  const prods = (sid) => allProds(sid).filter((p) => !cat(sid).removed.includes(p.product_id));
+  const byTime = (a, k) => a.slice().sort((x, y) => (y[k] < x[k] ? -1 : y[k] > x[k] ? 1 : 0));
+  function seed() { // 預先放入 10/9、10/10 的盤點與訂單履歷（展示用）
+    if (RT.seeded) return;
+    const days = ["2026-10-09", "2026-10-10"];
+    CFG.stores.forEach((s, si) => days.forEach((d, di) => {
+      const r = rng(s.store_id + d), op = CFG.users.find((u) => u.store_id === s.store_id).name;
+      RT.stocktakes.push({ id: "s" + si + di, date: d, timestamp: `${d}T21:${pad(10 + si * 8)}:00`, store_id: s.store_id, operator: op,
+        counts: CFG.products.map((p) => ({ name: p.name, qty: Math.floor(p.base_daily * (0.1 + r() * 0.6)) })) });
+      const ot = `${d}T21:${pad(30 + si * 8)}:00`, oid = "PO" + d.replace(/-/g, "") + "21" + (30 + si * 8) + "A" + si, lines = [];
+      CFG.products.forEach((p) => {
+        const special = s.store_id === "TN-0123" && d === days[0] && p.product_id === "P001", skip = r() < 0.15;
+        const sug = Math.max(p.lot, Math.ceil((p.base_daily * 2 * (0.8 + r() * 0.6)) / p.lot) * p.lot), chg = r() < 0.25, up = 1.15 + r() * 0.4;
+        if (skip && !special) return;
+        let fin = chg ? Math.max(1, Math.round(sug * up)) : sug;
+        if (special) fin = 120;
+        lines.push({ order_id: oid, timestamp: ot, store_id: s.store_id, operator: op, product_id: p.product_id, product_name: p.name, unit: p.unit,
+          suggested_qty: sug, final_qty: fin, modified: fin !== sug, large_order: special, reason: special ? "區域大型活動（如園遊會、運動會）" : null, note: special ? "10/12 里民園遊會" : null });
+      });
+      const st = d === days[1] && si === 1 ? "SENT" : "CONFIRMED";
+      RT.orders.push({ order_id: oid, store_id: s.store_id, store_name: s.name, operator: op, created: ot, status: st, ack_by: st === "SENT" ? null : "曾可蓮組長", lines });
+      RT.audit.push(...lines);
+    }));
+    RT.seeded = true; save();
+  }
+  seed();
+
+  const AM = () => (RT.amend = RT.amend || []);
+  async function call(method, path, body, token) {
+    path = path.split("?")[0]; const key = method + " " + path; let m;
+    if (key === "POST /login") {
+      const u = CFG.users.find((x) => x.username === body.username && x.password === body.password);
+      if (!u) throw new Err("帳號或密碼錯誤", 401);
+      const t = Math.random().toString(16).slice(2) + Date.now().toString(16), { password, ...safe } = u;
+      RT.tok[t] = safe; save(); return { token: t, user: safe };
+    }
+    if (key === "GET /me") { const u = auth(token); return { ...u, store_name: u.store_id ? storeName(u.store_id) : "統家總部" }; }
+    if (key === "GET /inventory") { const u = mgr(token); return { params: P, factors: CFG.market_factors, items: prods(u.store_id).map((p) => calc(u.store_id, p)) }; }
+    if (key === "POST /stocktake") {
+      const u = mgr(token), names = Object.fromEntries(allProds(u.store_id).map((p) => [p.product_id, p.name]));
+      for (const k in body.counts) if (!names[k] || body.counts[k] < 0) throw new Err("盤點資料有誤：" + k, 400);
+      Object.assign((RT.stock[u.store_id] = RT.stock[u.store_id] || {}), body.counts);
+      RT.stocktakes.push({ id: Date.now().toString(16), date: ymd(new Date()), timestamp: now(), store_id: u.store_id, operator: u.name,
+        counts: Object.entries(body.counts).map(([k, v]) => ({ name: names[k], qty: v })) });
+      save(); return { status: "SAVED" };
+    }
+    if (key === "GET /stocktakes") { const u = mgr(token); return { records: byTime(RT.stocktakes, "timestamp").filter((r) => r.store_id === u.store_id).slice(0, 30).map((r) => ({ ...r, pending_amend: AM().some((a) => a.target === r.id && a.status === "PENDING") })) }; }
+    if (key === "POST /orders") {
+      const u = mgr(token), sid = u.store_id, lines = [], oid = "PO" + now().replace(/\D/g, "") + Math.random().toString(16).slice(2, 5).toUpperCase();
+      for (const it of body.items) {
+        const p = prods(sid).find((x) => x.product_id === it.product_id);
+        if (!p) throw new Err("查無商品 " + it.product_id, 404);
+        if (!(it.qty > 0)) continue;
+        const c = calc(sid, p), big = it.qty > c.large_threshold;
+        if (big && !(it.reason && it.reason.trim())) throw new Err(`${p.name} 訂購量 ${it.qty} 超過歷史平均 ${P.large_order_factor} 倍，請填寫大量訂購原因`, 422);
+        lines.push({ order_id: oid, timestamp: now(), store_id: sid, operator: u.name, product_id: p.product_id, product_name: p.name, unit: p.unit,
+          suggested_qty: c.suggested_qty, final_qty: it.qty, modified: it.qty !== c.suggested_qty, large_order: big, reason: it.reason || null, note: it.note || null });
+      }
+      if (!lines.length) throw new Err("訂單沒有任何數量大於 0 的品項", 400);
+      RT.orders.push({ order_id: oid, store_id: sid, store_name: storeName(sid), operator: u.name, created: now(), status: "SENT", ack_by: null, lines });
+      RT.audit.push(...lines); save(); return { order_id: oid, status: "SENT", line_count: lines.length };
+    }
+    if (key === "GET /orders") { const u = auth(token); return { orders: byTime(RT.orders, "created").filter((o) => u.role === "hq" || o.store_id === u.store_id).slice(0, 50).map((o) => ({ ...o, pending_amend: AM().some((a) => a.target === o.order_id && a.status === "PENDING") })) }; }
+    if ((m = path.match(/^\/orders\/(.+)\/ack$/)) && method === "POST") {
+      if (auth(token).role !== "hq") throw new Err("僅限總部確認訂單", 403);
+      const o = RT.orders.find((x) => x.order_id === m[1]); if (!o) throw new Err("查無訂單", 404);
+      if (o.status !== "CONFIRMED") { o.lines.forEach((l) => { const p = allProds(o.store_id).find((x) => x.product_id === l.product_id); RT.stock[o.store_id][l.product_id] = stockOf(o.store_id, p) + l.final_qty; }); } // 確認後視為到貨，庫存增加
+      o.status = "CONFIRMED"; o.ack_by = auth(token).name; save(); return { status: "CONFIRMED" };
+    }
+    if (key === "GET /audit-logs") { const u = auth(token); return { logs: byTime(RT.audit, "timestamp").filter((x) => u.role === "hq" || x.store_id === u.store_id).slice(0, 100) }; }
+    if (key === "GET /stores") {
+      if (auth(token).role !== "hq") throw new Err("僅限總部", 403); const td = ymd(new Date());
+      return { stores: CFG.stores.map((s) => { const os = RT.orders.filter((o) => o.store_id === s.store_id && o.created.slice(0, 10) === td);
+        return { ...s, counted_today: RT.stocktakes.some((r) => r.store_id === s.store_id && r.date === td), orders_today: os.length,
+          pending_ack: os.filter((o) => o.status === "SENT").length, large_today: os.reduce((n, o) => n + o.lines.filter((l) => l.large_order).length, 0) }; }) };
+    }
+    if (key === "GET /amend") { const u = auth(token); return { amends: byTime(AM(), "requested_at").filter((a) => u.role === "hq" || a.store_id === u.store_id) }; }
+    if (key === "POST /amend") { // 過去資料的修正申請（需總部核准）
+      const u = mgr(token), b = body || {}, td = ymd(new Date());
+      const rec = b.type === "order" ? RT.orders.find((o) => o.order_id === b.target) : b.type === "count" ? RT.stocktakes.find((r) => r.id === b.target) : null;
+      if (!rec || rec.store_id !== u.store_id) throw new Err("查無資料", 404);
+      const rdate = (b.type === "order" ? rec.created : rec.timestamp).slice(0, 10);
+      if (rdate >= td) throw new Err("當日資料請直接重送，修正申請僅適用於過去的資料", 400);
+      if (!b.reason || !b.reason.trim()) throw new Err("請填寫修正原因", 422);
+      if (AM().some((a) => a.target === b.target && a.status === "PENDING")) throw new Err("這筆資料已有修正申請待核准", 400);
+      const diffs = [];
+      for (const c of b.changes || []) {
+        const cur = b.type === "order" ? rec.lines.find((l) => l.product_id === c.key) : rec.counts.find((x) => x.name === c.key);
+        if (!cur || !(c.qty >= 0)) throw new Err("修正內容有誤", 400);
+        const from = b.type === "order" ? cur.final_qty : cur.qty;
+        if (from !== Math.floor(c.qty)) diffs.push({ key: c.key, name: b.type === "order" ? cur.product_name : cur.name, from, to: Math.floor(c.qty) });
+      }
+      if (!diffs.length) throw new Err("數量沒有變更", 400);
+      const a = { id: "AM" + Date.now().toString(36), type: b.type, target: b.target, label: b.type === "order" ? rec.order_id : "盤點", date: rdate, store_id: u.store_id,
+        store_name: storeName(u.store_id), requested_by: u.name, requested_at: now(), reason: b.reason.trim(), diffs, status: "PENDING", decided_by: null, decided_at: null };
+      AM().push(a); save(); return { id: a.id, status: "PENDING" };
+    }
+    if ((m = path.match(/^\/amend\/(.+)\/decide$/)) && method === "POST") {
+      const h = auth(token); if (h.role !== "hq") throw new Err("僅限總部核准", 403);
+      const a = AM().find((x) => x.id === m[1]); if (!a || a.status !== "PENDING") throw new Err("查無待核准的申請", 404);
+      const ok = !!(body && body.approve), rec = a.type === "order" ? RT.orders.find((o) => o.order_id === a.target) : RT.stocktakes.find((r) => r.id === a.target);
+      if (ok && rec) a.diffs.forEach((d) => {
+        if (a.type === "order") {
+          const l = rec.lines.find((x) => x.product_id === d.key), p = allProds(rec.store_id).find((x) => x.product_id === d.key);
+          l.final_qty = d.to; l.modified = d.to !== l.suggested_qty;
+          if (p) { l.large_order = d.to > Math.round(p.base_daily * P.period_days) * P.large_order_factor; if (l.large_order && !l.reason) l.reason = "修正：" + a.reason;
+            if (rec.status === "CONFIRMED") { const cur = stockOf(rec.store_id, p); RT.stock[rec.store_id][d.key] = Math.max(0, cur + d.to - d.from); } } // 已到貨的訂單，庫存同步增減
+          RT.audit.push({ order_id: rec.order_id, timestamp: now(), store_id: rec.store_id, operator: a.requested_by, product_id: d.key, product_name: d.name, unit: l.unit,
+            suggested_qty: l.suggested_qty, final_qty: d.to, modified: true, large_order: false, reason: "修正：" + a.reason, note: `原 ${d.from} → ${d.to}，總部核准`, amended: true });
+        } else rec.counts.find((x) => x.name === d.key).qty = d.to;
+      });
+      a.status = ok ? "APPROVED" : "REJECTED"; a.decided_by = h.name; a.decided_at = now();
+      if (rec) (rec.edits = rec.edits || []).push({ id: a.id, status: a.status, at: a.decided_at, by: a.requested_by, reason: a.reason, decided_by: h.name, diffs: a.diffs });
+      save(); return { status: a.status };
+    }
+    if (key === "POST /demo/reset-today") { // 清除「今天」的盤點、訂單、日誌與庫存變動，保留歷史與新增商品
+      auth(token); const td = ymd(new Date());
+      RT.orders = RT.orders.filter((o) => o.created.slice(0, 10) !== td);
+      RT.stocktakes = RT.stocktakes.filter((r) => r.date !== td);
+      RT.audit = RT.audit.filter((l) => l.timestamp.slice(0, 10) !== td);
+      const undo = (a) => { const rec = a.type === "order" ? RT.orders.find((o) => o.order_id === a.target) : RT.stocktakes.find((r) => r.id === a.target); if (!rec) return;
+        a.diffs.forEach((d) => { if (a.type === "order") { const l = rec.lines.find((x) => x.product_id === d.key), p = allProds(rec.store_id).find((x) => x.product_id === d.key);
+          if (l) { l.final_qty = d.from; l.modified = d.from !== l.suggested_qty; if (p) l.large_order = d.from > Math.round(p.base_daily * P.period_days) * P.large_order_factor; } } else { const c = rec.counts.find((x) => x.name === d.key); if (c) c.qty = d.from; } }); };
+      AM().filter((a) => a.decided_at && a.decided_at.slice(0, 10) === td).forEach((a) => { if (a.status === "APPROVED") undo(a); a.status = "PENDING"; a.decided_by = a.decided_at = null; });
+      RT.amend = AM().filter((a) => a.requested_at.slice(0, 10) !== td);
+      const live = new Set(RT.amend.filter((a) => a.status !== "PENDING").map((a) => a.id));
+      [...RT.orders, ...RT.stocktakes].forEach((r) => { if (r.edits) r.edits = r.edits.filter((e) => live.has(e.id)); });
+      RT.stock = {}; save(); return { status: "RESET" };
+    }
+    if (key === "POST /demo/reset-all") { // 全部還原：清除所有紀錄與新增商品，重新放入 10/9、10/10 歷史
+      auth(token); RT = { stock: {}, stocktakes: [], orders: [], audit: [], tok: RT.tok }; seed(); return { status: "RESET_ALL" };
+    }
+    if (key === "GET /products") { const u = mgr(token); return { items: prods(u.store_id).map((p) => ({ ...p, stock: stockOf(u.store_id, p) })) }; }
+    if (key === "POST /products") {
+      const u = mgr(token), b = body || {}, sid = u.store_id;
+      if (!b.name || !b.name.trim()) throw new Err("請輸入商品名稱", 400);
+      if (prods(sid).some((p) => p.name === b.name.trim())) throw new Err("已有同名商品", 400);
+      const id = "N" + (RT.seq = (RT.seq || 0) + 1);
+      cat(sid).added.push({ product_id: id, name: b.name.trim(), category: (b.category || "其他").trim(), unit: (b.unit || "個").trim(),
+        lot: Math.max(1, Math.floor(b.lot) || 1), shelf_days: Math.max(0, Math.floor(b.shelf_days) || 0), base_daily: Math.max(1, +b.base_daily || 1) });
+      (RT.stock[sid] = RT.stock[sid] || {})[id] = Math.max(0, Math.floor(b.stock) || 0); save(); return { product_id: id };
+    }
+    if (method === "DELETE" && (m = path.match(/^\/products\/(.+)$/))) {
+      const u = mgr(token); if (!prods(u.store_id).some((p) => p.product_id === m[1])) throw new Err("查無商品", 404);
+      cat(u.store_id).removed.push(m[1]); save(); return { status: "REMOVED" };
+    }
+    throw new Err("找不到功能：" + key, 404);
+  }
+  return { call, reset: () => { RT = { stock: {}, stocktakes: [], orders: [], audit: [], tok: {} }; save(); } };
+})();
+if (typeof module !== "undefined") module.exports = MockAPI;
